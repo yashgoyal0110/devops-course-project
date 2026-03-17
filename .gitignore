@@ -1,0 +1,16 @@
+node_modules
+.DS_Store
+.env
+dist
+build
+coverage
+.vercel
+terra-key-ec2
+terra-key-ec2.pub
+terraform.tfstate
+terraform.tfstate.backup
+.terraform.lock.hcl
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
