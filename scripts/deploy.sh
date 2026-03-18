@@ -11,31 +11,43 @@ cd "$APP_DIR"
 echo ">> Pulling latest code..."
 git pull origin main
 
-# Load NVM (CRITICAL)
+# Load NVM
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
-# Use stable Node version
 nvm use 22
 
 echo ">> Node version: $(node -v)"
 
+# -------------------
+# SERVER SETUP
+# -------------------
 echo ">> Installing server dependencies..."
 cd "$APP_DIR/server"
-npm ci --production
+npm ci --omit=dev
 
+# -------------------
+# CLIENT BUILD
+# -------------------
 echo ">> Building client..."
 cd "$APP_DIR/client"
 npm ci
 npm run build
 
+# -------------------
+# RESTART SERVER
+# -------------------
 echo ">> Restarting server with PM2..."
 cd "$APP_DIR/server"
+
 pm2 delete "$APP_NAME" 2>/dev/null || true
-npx pm2 start src/index.js --name "$APP_NAME"
-npx pm2 save
+
+pm2 start src/index.js \
+  --name "$APP_NAME" \
+  --time
+
+pm2 save
 
 echo ""
 echo "=== Deployment complete! ==="
-echo "Server running as PM2 process: $APP_NAME"
 pm2 status
