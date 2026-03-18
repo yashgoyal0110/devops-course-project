@@ -32,8 +32,8 @@ npm run build
 echo ">> Restarting server with PM2..."
 cd "$APP_DIR/server"
 pm2 delete "$APP_NAME" 2>/dev/null || true
-pm2 start src/index.js --name "$APP_NAME"
-pm2 save
+npx pm2 start src/index.js --name "$APP_NAME"
+npx pm2 save
 
 echo ""
 echo "=== Deployment complete! ==="
