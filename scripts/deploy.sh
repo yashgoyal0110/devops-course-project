@@ -1,4 +1,4 @@
-\#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 APP_DIR=~/devops-course-project
@@ -11,7 +11,14 @@ cd "$APP_DIR"
 echo ">> Pulling latest code..."
 git pull origin main
 
-nvm use 22
+# Load NVM (CRITICAL)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Use stable Node version
+nvm use 18
+
+echo ">> Node version: $(node -v)"
 
 echo ">> Installing server dependencies..."
 cd "$APP_DIR/server"
