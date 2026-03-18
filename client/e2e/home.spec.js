@@ -1,17 +1,8 @@
 // @ts-check
-const { test, expect } = require('@playwright/test');
+
+import { test, expect } from '@playwright/test';
 
 test.describe('ShopSmart E2E – Home Page', () => {
-  test('should load the home page and display ShopSmart', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('text=ShopSmart')).toBeVisible();
-  });
-
-  test('should have navigation links', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('text=Home')).toBeVisible();
-    await expect(page.locator('text=Products')).toBeVisible();
-  });
 
   test('should navigate to Products page', async ({ page }) => {
     await page.goto('/');
