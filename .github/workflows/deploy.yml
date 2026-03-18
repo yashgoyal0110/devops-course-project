@@ -17,8 +17,11 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            if [ ! -d "~/devops-course-project" ]; then
+           if [ ! -d "$HOME/devops-course-project/.git" ]; then
+              echo "Cloning repo..."
               git clone https://github.com/${{ github.repository }}.git ~/devops-course-project
+            else
+              echo "Repo already exists, pulling latest..."
             fi
 
             cd ~/devops-course-project
