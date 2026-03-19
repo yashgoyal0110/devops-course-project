@@ -24,7 +24,7 @@ echo ">> Node version: $(node -v)"
 # -------------------
 echo ">> Installing server dependencies..."
 cd "$APP_DIR/server"
-npm ci --omit=dev
+npm i
 
 # -------------------
 # CLIENT BUILD
