@@ -154,13 +154,33 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Resolve resource names from AWS
+        id: names
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          ECR_URL="$ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/$PROJECT_NAME-server"
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names "$PROJECT_NAME-alb" \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          {
+            echo "ecr_url=$ECR_URL"
+            echo "cluster=$PROJECT_NAME-cluster"
+            echo "service=$PROJECT_NAME-service"
+            echo "task_family=$PROJECT_NAME-task"
+            echo "alb_dns=$ALB_DNS"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved:"
+          echo "  ECR_URL = $ECR_URL"
+          echo "  ALB_DNS = $ALB_DNS"
+
       - name: Login to Amazon ECR
         id: ecr_login
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build & push Docker image
         env:
-          ECR_URL: ${{ needs.terraform.outputs.ecr_url }}
+          ECR_URL: ${{ steps.names.outputs.ecr_url }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t "$ECR_URL:$IMAGE_TAG" -t "$ECR_URL:latest" ./server
@@ -170,8 +190,8 @@ jobs:
       - name: Render new ECS task definition
         id: render_task
         env:
-          TASK_FAMILY: ${{ needs.terraform.outputs.task_family }}
-          ECR_URL: ${{ needs.terraform.outputs.ecr_url }}
+          TASK_FAMILY: ${{ steps.names.outputs.task_family }}
+          ECR_URL: ${{ steps.names.outputs.ecr_url }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           aws ecs describe-task-definition \
@@ -194,8 +214,8 @@ jobs:
 
       - name: Deploy to ECS
         env:
-          CLUSTER: ${{ needs.terraform.outputs.cluster }}
-          SERVICE: ${{ needs.terraform.outputs.service }}
+          CLUSTER: ${{ steps.names.outputs.cluster }}
+          SERVICE: ${{ steps.names.outputs.service }}
           NEW_REVISION: ${{ steps.render_task.outputs.new_revision }}
         run: |
           aws ecs update-service \
@@ -207,8 +227,8 @@ jobs:
 
       - name: Wait for ECS service to stabilize
         env:
-          CLUSTER: ${{ needs.terraform.outputs.cluster }}
-          SERVICE: ${{ needs.terraform.outputs.service }}
+          CLUSTER: ${{ steps.names.outputs.cluster }}
+          SERVICE: ${{ steps.names.outputs.service }}
         run: |
           aws ecs wait services-stable \
             --cluster "$CLUSTER" \
@@ -216,9 +236,9 @@ jobs:
 
       - name: Verify service is running
         env:
-          CLUSTER: ${{ needs.terraform.outputs.cluster }}
-          SERVICE: ${{ needs.terraform.outputs.service }}
-          ALB_DNS: ${{ needs.terraform.outputs.alb_dns }}
+          CLUSTER: ${{ steps.names.outputs.cluster }}
+          SERVICE: ${{ steps.names.outputs.service }}
+          ALB_DNS: ${{ steps.names.outputs.alb_dns }}
         run: |
           RUNNING=$(aws ecs describe-services \
             --cluster "$CLUSTER" \
