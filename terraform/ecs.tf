@@ -18,8 +18,8 @@ resource "aws_ecs_task_definition" "app" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = var.task_cpu
   memory                   = var.task_memory
-  execution_role_arn       = aws_iam_role.task_execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  execution_role_arn       = data.aws_iam_role.lab.arn
+  task_role_arn            = data.aws_iam_role.lab.arn
 
   container_definitions = jsonencode([
     {

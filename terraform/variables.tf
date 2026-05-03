@@ -53,3 +53,9 @@ variable "jwt_secret" {
   default     = "change-me-in-production"
   sensitive   = true
 }
+
+variable "existing_task_role_name" {
+  description = "Name of a pre-existing IAM role to use for ECS task execution AND task role (e.g. AWS Academy 'LabRole'). Avoids needing iam:CreateRole."
+  type        = string
+  default     = "LabRole"
+}
