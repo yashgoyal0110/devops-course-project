@@ -1,33 +1,33 @@
 # ---------- Stage 1: Build Dependencies ----------
-FROM node:24-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies separately for better caching
 COPY package.json package-lock.json* ./
-
-# Install only production dependencies
 RUN npm ci --only=production
 
-# Copy rest of the source code
 COPY . .
 
 # ---------- Stage 2: Production Image ----------
-FROM node:24-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S nodegroup && adduser -S nodeuser -G nodegroup
+RUN apk add --no-cache wget \
+ && addgroup -S nodegroup \
+ && adduser -S nodeuser -G nodegroup
 
-# Copy node_modules and app from builder
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app ./
 
-# Set ownership
 RUN chown -R nodeuser:nodegroup /app
 
 USER nodeuser
 
-# Start application
+ENV PORT=5001
+EXPOSE 5001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -q -O- http://localhost:${PORT}/api/health || exit 1
+
 CMD ["node", "src/index.js"]

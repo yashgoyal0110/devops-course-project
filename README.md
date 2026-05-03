@@ -14,10 +14,10 @@ A full-stack e-commerce platform built with **React** and **Express**, demonstra
 └──────────────────┘       └──────────────────┘       └─────────────┘
         │                          │
         ▼                          ▼
-┌──────────────────┐       ┌──────────────────┐
-│  Vercel          │       │  Render / EC2    │
-│  (Frontend Host) │       │  (Backend Host)  │
-└──────────────────┘       └──────────────────┘
+┌──────────────────┐       ┌──────────────────────────────┐
+│  Vercel          │       │  AWS ECS Fargate behind ALB  │
+│  (Frontend Host) │       │  (Backend, image from ECR)   │
+└──────────────────┘       └──────────────────────────────┘
 ```
 
 ### Client (React + Vite)
@@ -158,23 +158,75 @@ On push to `main`, the `deploy.yml` workflow SSHes into EC2 and runs `scripts/de
 
 ---
 
-## 📜 Idempotent Scripts
+## 🚀 CI/CD Pipeline (ECS Fargate)
 
-| Script | Purpose | Idempotent Patterns |
-|--------|---------|---------------------|
-| `scripts/setup.sh` | Initial EC2 setup | `mkdir -p`, `command -v` checks, `[ ! -f ]` guards |
-| `scripts/deploy.sh` | Deploy latest code | `git pull`, `npm ci`, `pm2 delete \|\| true` |
+`.github/workflows/pipeline.yml` runs three sequential phases on every push to `main`:
 
-Both scripts can be **safely run multiple times** without side effects.
+### Phase 1 — Testing
+- Installs server + client deps
+- Runs ESLint on both
+- Runs Jest (unit + integration) with coverage and JUnit report
+- Runs Vitest on the client
+- Uploads `server/reports/` and `server/coverage/` as a build artifact
+
+### Phase 2 — Infrastructure (Terraform)
+Working directory: `terraform/`. Steps: `init` → `validate` → `plan` → `apply`. Provisions:
+- **S3 bucket** — unique random-suffixed name, versioning **enabled**, AES-256 encryption **enabled**, all public access **blocked**
+- **ECR repository** with scan-on-push and a 10-image lifecycle policy
+- **ECS Fargate cluster + service + task definition** (awsvpc, CloudWatch logs)
+- **Application Load Balancer** with `/api/health` health check, target group, listener
+- **IAM roles** for task execution and the task itself
+- Default VPC + subnets + security groups
+
+### Phase 3 — Container Build & ECS Deployment
+- Builds `server/Dockerfile` (multi-stage, non-root, `HEALTHCHECK`)
+- Pushes `:<sha>` and `:latest` to ECR
+- Registers a new task-definition revision pointing at the new image
+- `aws ecs update-service --force-new-deployment` and waits for the service to stabilize
+- Curls the ALB `/api/health` endpoint to verify
+
+---
+
+## 🔐 Required GitHub Secrets
+
+Add these in **Settings → Secrets and variables → Actions**:
+
+| Secret | Purpose |
+|--------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS access key (Learner Lab / IAM user) |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
+| `AWS_SESSION_TOKEN` | Required for AWS Academy / temporary credentials |
+| `AWS_REGION` | e.g. `us-east-1` |
+| `MONGODB_URI` | MongoDB Atlas connection string (optional — leave empty to skip DB) |
+| `JWT_SECRET` | JWT signing secret used by the server at runtime |
+
+The IAM principal needs permissions for: S3, ECR, ECS, IAM (create roles), EC2 (VPC/subnets/SGs), ELB, CloudWatch Logs. `PowerUserAccess` + `IAMFullAccess` is sufficient for the course.
 
 ---
 
 ## 🏗️ Infrastructure (Terraform)
 
-The `ec2.tf` + `variables.tf` files provision:
-- AWS EC2 instance (t3.micro, gp3 SSD)
-- Security group allowing SSH (22) and HTTP (80)
-- SSH key pair for deployment
+All infra lives under [`terraform/`](terraform/):
+
+| File | Purpose |
+|------|---------|
+| `versions.tf` | Required providers + Terraform version |
+| `providers.tf` | AWS provider + default tags |
+| `variables.tf` | Inputs (region, project name, image tag, secrets) |
+| `s3.tf` | Versioned, encrypted, public-blocked S3 bucket |
+| `ecr.tf` | Container image registry |
+| `network.tf` | Default VPC lookup, ALB, target group, security groups |
+| `iam.tf` | ECS task-execution + task IAM roles |
+| `ecs.tf` | Cluster, task definition, service, log group |
+| `outputs.tf` | URLs/names consumed by the deploy job |
+
+Run locally:
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+```
 
 ---
 
@@ -184,9 +236,7 @@ The `ec2.tf` + `variables.tf` files provision:
 devops-course-project/
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml              # CI pipeline
-│   │   ├── lint.yml            # PR lint checks
-│   │   └── deploy.yml          # EC2 deployment
+│   │   └── pipeline.yml        # 3-phase CI/CD: Test → Terraform → Build/Deploy
 │   └── dependabot.yml          # Dependency updates
 ├── client/                     # React frontend
 │   ├── src/
@@ -209,11 +259,8 @@ devops-course-project/
 │   ├── jest.config.js
 │   └── Dockerfile
 ├── scripts/
-│   ├── setup.sh                # EC2 setup (idempotent)
-│   └── deploy.sh               # Deployment (idempotent)
-├── ec2.tf                      # Terraform EC2 config
-├── variables.tf                # Terraform variables
-├── render.yaml                 # Render deployment config
+│   └── setup.sh                # Local dev bootstrap (idempotent)
+├── terraform/                  # AWS infrastructure (S3 / ECR / ECS / ALB / IAM)
 ├── .prettierrc                 # Prettier config
 └── README.md
 ```

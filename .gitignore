@@ -5,12 +5,14 @@ dist
 build
 coverage
 .vercel
-terra-key-ec2
-terra-key-ec2.pub
-terraform.tfstate
-terraform.tfstate.backup
-.terraform.lock.hcl
-.terraform/
+
+# Terraform
+**/.terraform/
 *.tfstate
 *.tfstate.*
+*.tfplan
 crash.log
+
+# Test reports
+reports/
+junit.xml
